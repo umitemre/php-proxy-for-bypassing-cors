@@ -87,6 +87,10 @@ class UserRequest
             $this->request_headers['Content-Type'] = $_SERVER['HTTP_CONTENT_TYPE'];
         }
 
+        if (isset($_SERVER['CONTENT_TYPE'])) {
+            $this->request_headers['Content-Type'] = $_SERVER['CONTENT_TYPE'];
+        }
+
         if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $this->request_headers['Authorization'] = $_SERVER['HTTP_AUTHORIZATION'];
         }
