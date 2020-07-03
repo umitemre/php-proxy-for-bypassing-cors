@@ -51,6 +51,25 @@ class UserRequest
     private $request_fields = [];
 
     /**
+     * Stores if the content type is multipart/form-data
+     * @var bool
+     */
+    private $multiPart = false;
+
+    /**
+     * Stores if the content type is application/x-www-url-encoded
+     * @var bool
+     */
+    private $urlEncoded = false;
+
+
+    /**
+     * @var bool
+     */
+    private $hasPayload = false;
+
+
+    /**
      * UserRequest constructor.
      * @throws Exception
      */
@@ -75,6 +94,8 @@ class UserRequest
             }
         }
 
+        $this->hasPayload = mb_strlen($this->getRequestBody()) > 0;
+
         $this->parse_header();
     }
 
@@ -95,14 +116,20 @@ class UserRequest
             $this->request_headers['Authorization'] = $_SERVER['HTTP_AUTHORIZATION'];
         }
 
-        //
+        if (isset($this->request_headers['Content-Type'])) {
+            $contentType = $this->request_headers['Content-Type'];
+
+            $this->multiPart = !(gettype(strpos($contentType, "multipart/form-data")) === "boolean");
+            $this->urlEncoded = !(gettype(strpos($contentType, "application/x-www-form-urlencoded")) === "boolean");
+        }
     }
 
     /**
      * Executes user response and returns it
      * @return UserResponse
      */
-    public function execute () : UserResponse {
+    public function execute(): UserResponse
+    {
         $client = new Client();
         $request = new Request(
             $this->getRequestMethod(),
@@ -114,12 +141,26 @@ class UserRequest
         $responseInterface = null;
 
         try {
-            if (mb_strlen($this->getRequestBody()) > 0) {
-                $responseInterface = $client->send($request, ['body' => $this->getRequestBody()]);
-            } else if (count($this->getRequestFields()) > 0) {
+            if ($this->multiPart) {
+                $multiPartFields = [];
+
+                foreach ($this->getRequestFields() as $fieldKey => $fieldValue) {
+                    $multiPartFields[] = [
+                        'name' => $fieldKey,
+                        'contents' => $fieldValue
+                    ];
+                }
+
+                $responseInterface = $client->send($request->withoutHeader('Content-Type'), [
+                    'multipart' => $multiPartFields
+                ]);
+
+            } else if ($this->urlEncoded) {
                 $responseInterface = $client->send($request, [
                     'form_params' => $this->getRequestFields()
                 ]);
+            } else if ($this->hasPayload) {
+                $responseInterface = $client->send($request, ['body' => $this->getRequestBody()]);
             } else {
                 $responseInterface = $client->send($request);
             }
